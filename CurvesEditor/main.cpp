@@ -2,6 +2,7 @@
 #include "CGInit.h"
 #include "Hermitte.h"
 #include "Models.h"
+#include <fstream>
 /*
 * DEFINE CONSTANTS
 */
@@ -15,6 +16,8 @@
 #define TOGGLE_TANGENTS 1
 #define TOGGLE_EDIT_DER_PARAMETERS 2
 #define TOGGLE_POLYGONAL 3
+
+#define EXPORT_POINTS 3
 /*
 * GLOBAL SCOPE
 */
@@ -173,6 +176,32 @@ void resize(GLsizei w, GLsizei h)
 	glutPostRedisplay();
 }
 
+void exportPoints()
+{
+	fstream fout;
+	fout.open("output.txt", ios::out);
+	if (!fout)
+	{
+		cout << "Impossibile scrivere su file" << endl;
+		return;
+	}
+	fout << "CURVE CONTROL POINTS" << endl;
+	fout << "--------------------" << endl;
+	for (int i = 0; i < curve.controlPoints.size(); i++)
+	{
+		vec3 point = curve.controlPoints[i];
+		fout << point.x << "," << point.y << "," << point.z << endl;
+	}
+	fout << "--------------------" << endl;
+	for (int i = 0; i < derivative.controlPoints.size(); i++)
+	{
+		vec3 point = derivative.controlPoints[i];
+		fout << point.x << "," << point.y << "," << point.z << endl;
+	}
+	fout << "--------------------" << endl;
+	fout.close();
+}
+
 void interactionSubMenuFunction(int selection)
 {
 	flags.interactionMode = selection;
@@ -206,6 +235,9 @@ void mainMenuFunction(int selection)
 {
 	switch (selection)
 	{
+	case EXPORT_POINTS:
+		exportPoints();
+		break;
 	default:
 		break;
 	}
@@ -231,6 +263,7 @@ void buildMainMenu()
 	glutAddSubMenu("Modalita interazione", interactionSubMenu);
 	glutAddSubMenu("Hermitte", hermitteSubMenu);
 	glutAddSubMenu("Bezier", bezierSubMenu);
+	glutAddMenuEntry("Export", EXPORT_POINTS);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
 
