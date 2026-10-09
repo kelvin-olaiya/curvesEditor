@@ -1,44 +1,28 @@
 # CurvesEditor
 
-OpenGL editor for Hermite interpolating and Bézier approximating curves.
+A small interactive editor for 2D parametric curves, written in C++ and OpenGL.
 
-Runs on Windows, macOS and Linux. It uses [GLFW](https://www.glfw.org/) for the window,
-[glad](https://github.com/Dav1dde/glad) to load OpenGL 3.3 core, [GLM](https://github.com/g-truc/glm)
-for math and [Dear ImGui](https://github.com/ocornut/imgui) for the right-click menu.
+Click to place control points and see the curve update live:
 
-## Requirements
+- **Hermite**: an interpolating curve through every point, with per-point tension, bias and continuity
+- **Bézier**: an approximating curve evaluated with De Casteljau's algorithm
 
-- CMake ≥ 3.16 and a C++17 compiler (MSVC, Clang or GCC)
-- An internet connection on the first configure: GLFW, GLM and ImGui are downloaded automatically
-  (glad is already in `third_party/`)
+Control points can be exported to `output.txt`.
 
-On Linux you also need the headers GLFW builds against:
+## Build
 
 ```sh
-# Debian/Ubuntu
-sudo apt install build-essential cmake libgl-dev libx11-dev libxrandr-dev libxinerama-dev \
-  libxcursor-dev libxi-dev libwayland-dev libxkbcommon-dev wayland-protocols
+cmake -S . -B build && cmake --build build
+cd build && ./CurvesEditor
 ```
 
-## Build & run
+Dependencies are fetched by CMake. On Linux, install the X11/Wayland dev headers GLFW needs first.
 
-```sh
-cmake -S . -B build
-cmake --build build --config Release
-```
+## Controls
 
-Then run it from the directory holding the executable (the shaders are copied there and loaded by
-relative path):
-
-```sh
-cd build && ./CurvesEditor                 # macOS / Linux
-cd build\Release && CurvesEditor.exe       # Windows (Visual Studio generator)
-```
-
-## Usage
-
-- **Right click**: menu (interaction mode, Hermite / Bézier, export)
-- **Left click**: insert / select / delete a control point, depending on the mode
-- **Drag** (in "Sposta" mode): move the selected point
-- **t/T, b/B, c/C** (with "modifica tangenti" on and a point selected): tension, bias, continuity
-- **Export** writes the control points to `output.txt` in the working directory
+| Input | Action |
+| --- | --- |
+| Right click | Menu: mode, curve type, export |
+| Left click | Add, select or delete a point |
+| Drag | Move the selected point |
+| `t`/`T` `b`/`B` `c`/`C` | Tension, bias, continuity of the selected point (with tangent editing on) |
