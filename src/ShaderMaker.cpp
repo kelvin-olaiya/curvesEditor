@@ -3,7 +3,6 @@
 #include <iostream>
 #include <fstream>
 
-#pragma warning(disable:4996)
 char* ShaderMaker::readShaderSource(const char* shaderFile)
 {
 	FILE* fp = fopen(shaderFile, "rb");
@@ -79,8 +78,8 @@ GLuint ShaderMaker::createProgram(char* vertexfilename, char *fragmentfilename)
 	{
 		fprintf(
 			stderr,
-			"ERROR: Could not create the shaders: %s \n",
-			gluErrorString(ErrorCheckValue)
+			"ERROR: Could not create the shaders: 0x%x \n",
+			ErrorCheckValue
 		);
 
 		exit(-1);

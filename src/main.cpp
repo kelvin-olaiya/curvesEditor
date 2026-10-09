@@ -1,8 +1,11 @@
-﻿#include "ShaderMaker.h"
+#include "ShaderMaker.h"
 #include "CGInit.h"
 #include "Hermitte.h"
 #include "Models.h"
 #include <fstream>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 /*
 * DEFINE CONSTANTS
 */
@@ -22,6 +25,7 @@
 * GLOBAL SCOPE
 */
 static unsigned int programId;
+static GLFWwindow* window;
 /*
  * Viewport size
  */
@@ -42,6 +46,9 @@ vec2 mouseClickPosition;
 /* Selected point */
 int selectedPoint = -1;
 
+/* Set on right click, the menu popup is opened during the next frame */
+bool openMainMenu = false;
+
 /* Menu struct */
 typedef struct {
 	int interpolationMethod;
@@ -52,7 +59,7 @@ typedef struct {
 } Controls;
 
 /* Variables */
-Shape curve, polygonal, derivative, tangents;
+Shape curve, polygonal, derivative, tangents, thickCurve;
 Controls flags;
 
 void getUniformLocations(unsigned int* programId) 
@@ -64,8 +71,9 @@ void getUniformLocations(unsigned int* programId)
 	fragmentShaderChoice = glGetUniformLocation(*programId, "fShaderChoice");
 }
 
-void keyPressEvent(unsigned char key, int x, int y)
+void keyPressEvent(GLFWwindow* window, unsigned int key)
 {
+	if (ImGui::GetIO().WantCaptureKeyboard) return;
 	if (selectedPoint > -1 && flags.editDerivativeParameters) {
 		switch (key)
 		{
@@ -91,7 +99,6 @@ void keyPressEvent(unsigned char key, int x, int y)
 			break;
 		}
 	}
-	glutPostRedisplay();
 }
 
 double distance(float x1, float y1, float x2, float y2)
@@ -99,15 +106,20 @@ double distance(float x1, float y1, float x2, float y2)
 	return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
 }
 
-void mouseClick(int button, int state, int x, int y)
+void mouseClick(GLFWwindow* window, int button, int action, int mods)
 {
-	glutPostRedisplay();
+	if (ImGui::GetIO().WantCaptureMouse) return;
+	double x, y;
+	glfwGetCursorPos(window, &x, &y);
 	mouseClickPosition = vec2((float)x, (float)height - y);
-	if (state == GLUT_DOWN)
+	if (action == GLFW_PRESS)
 	{
 		switch (button)
 		{
-		case GLUT_LEFT_BUTTON:
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			openMainMenu = true;
+			break;
+		case GLFW_MOUSE_BUTTON_LEFT:
 			// flags.editDerivativeParameters = false;
 			if (flags.interactionMode == INSERT_MODE)
 			{
@@ -149,14 +161,14 @@ void mouseClick(int button, int state, int x, int y)
 	}
 }
 
-void mouseMotion(int x, int y)
+void mouseMotion(GLFWwindow* window, double x, double y)
 {
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) return;
 	if (flags.interactionMode == EDIT_MODE && selectedPoint > -1)
 	{
 		curve.controlPoints[selectedPoint].x = x;
 		curve.controlPoints[selectedPoint].y = height -y;
 	}
-	glutPostRedisplay();
 }
 
 void resize(GLsizei w, GLsizei h)
@@ -173,7 +185,6 @@ void resize(GLsizei w, GLsizei h)
 	else {
 		glViewport(0, 0, h * worldAspectRatio, h);
 	}
-	glutPostRedisplay();
 }
 
 void exportPoints()
@@ -243,45 +254,57 @@ void mainMenuFunction(int selection)
 	}
 }
 
-void buildMainMenu()
+void drawMainMenu()
 {
-	int interactionSubMenu = glutCreateMenu(interactionSubMenuFunction);
-	glutAddMenuEntry("Inserisci", INSERT_MODE);
-	glutAddMenuEntry("Sposta", EDIT_MODE);
-	glutAddMenuEntry("Elimina", DELETE_MODE);
+	if (openMainMenu)
+	{
+		ImGui::OpenPopup("mainMenu");
+		openMainMenu = false;
+	}
+	if (!ImGui::BeginPopup("mainMenu")) return;
 
-	int hermitteSubMenu = glutCreateMenu(hermitteSubMenuFunction);
-	glutAddMenuEntry("Calcola interpolante - Hermitte", 0);
-	glutAddMenuEntry("Toggle modifica tangenti", TOGGLE_EDIT_DER_PARAMETERS);
-	glutAddMenuEntry("Toggle visualizzazione tangenti", TOGGLE_TANGENTS);
+	if (ImGui::BeginMenu("Modalita interazione"))
+	{
+		if (ImGui::MenuItem("Inserisci", nullptr, flags.interactionMode == INSERT_MODE)) interactionSubMenuFunction(INSERT_MODE);
+		if (ImGui::MenuItem("Sposta", nullptr, flags.interactionMode == EDIT_MODE)) interactionSubMenuFunction(EDIT_MODE);
+		if (ImGui::MenuItem("Elimina", nullptr, flags.interactionMode == DELETE_MODE)) interactionSubMenuFunction(DELETE_MODE);
+		ImGui::EndMenu();
+	}
+	if (ImGui::BeginMenu("Hermitte"))
+	{
+		if (ImGui::MenuItem("Calcola interpolante - Hermitte")) hermitteSubMenuFunction(0);
+		if (ImGui::MenuItem("Toggle modifica tangenti", nullptr, flags.editDerivativeParameters)) hermitteSubMenuFunction(TOGGLE_EDIT_DER_PARAMETERS);
+		if (ImGui::MenuItem("Toggle visualizzazione tangenti", nullptr, flags.showTangents)) hermitteSubMenuFunction(TOGGLE_TANGENTS);
+		ImGui::EndMenu();
+	}
+	if (ImGui::BeginMenu("Bezier"))
+	{
+		if (ImGui::MenuItem("Calcola approssimante - Bezier")) bezierSubMenuFunction(0);
+		if (ImGui::MenuItem("Toggle poligono di controllo", nullptr, flags.showPolygonal)) bezierSubMenuFunction(TOGGLE_POLYGONAL);
+		ImGui::EndMenu();
+	}
+	if (ImGui::MenuItem("Export")) mainMenuFunction(EXPORT_POINTS);
 
-	int bezierSubMenu = glutCreateMenu(bezierSubMenuFunction);
-	glutAddMenuEntry("Calcola approssimante - Bezier", 0);
-	glutAddMenuEntry("Toggle poligono di controllo", TOGGLE_POLYGONAL);
-
-	int mainMenu = glutCreateMenu(mainMenuFunction);
-	glutAddSubMenu("Modalita interazione", interactionSubMenu);
-	glutAddSubMenu("Hermitte", hermitteSubMenu);
-	glutAddSubMenu("Bezier", bezierSubMenu);
-	glutAddMenuEntry("Export", EXPORT_POINTS);
-	glutAttachMenu(GLUT_RIGHT_BUTTON);
+	ImGui::EndPopup();
 }
 
 void initializer() {}
 
 void drawScene(void)
 {
-	/* Maps the object coordinates to a portion of the screen */
-	glViewport(0, 0, width, height);
-	float time = glutGet(GLUT_ELAPSED_TIME);
+	/* Maps the object coordinates to a portion of the screen (framebuffer size differs from window size on HiDPI screens) */
+	int framebufferWidth, framebufferHeight;
+	glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+	glViewport(0, 0, framebufferWidth, framebufferHeight);
+	float time = glfwGetTime() * 1000;
 	/* Make sure that stencil buffer contains only zeros */
 	glClearStencil(0);
-	glClearColor(0.0, 1.0, 0.0, 1.0); // sfondo
+	glClearColor(0.0, 0.0, 0.0, 1.0); // sfondo
 	glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, value_ptr(projectionMatrix));
 	/*-------------------------------- START HERE ---------------------------------------*/
 	vec4 col_bottom = vec4{ 0.5451, 0.2706, 0.0745, 1.0000 };
-	vec4 col_top = vec4{ 1.0,0.4980, 0.0353,1.0000 };
+	vec4 col_top = vec4{ 1.0, 1.0, 1.0, 1.0 }; // curve color
 	if (flags.interpolationMethod == INTERPOLATE_HERMITTE)
 	{
 		createHermitteShape(col_top, col_bottom, &curve, &polygonal, &derivative, &tangents);
@@ -290,7 +313,6 @@ void drawScene(void)
 	{
 		createBezierShape(col_top, col_bottom, &curve, &polygonal, 140);
 	}
-	createVerticesVaoVector(&curve);
 	createControlPointVaoVector(&polygonal);
 
 	curve.model = mat4(1.0);
@@ -299,8 +321,10 @@ void drawScene(void)
 
 	if (polygonal.controlPoints.size() > 1)
 	{
-		glBindVertexArray(curve.vao);
-		glDrawArrays(GL_LINE_STRIP, 0, curve.vertices.size());
+		createThickLineShape(&curve, &thickCurve, 3.0);
+		createVerticesVaoVector(&thickCurve);
+		glBindVertexArray(thickCurve.vao);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, thickCurve.vertices.size());
 		glBindVertexArray(0);
 	}
 	// Draw control points
@@ -322,12 +346,6 @@ void drawScene(void)
 	}
 	/*-----------------------------------------------------------------------------------*/
 	glBindVertexArray(0);
-	glutSwapBuffers();
-}
-
-void update(int value)
-{
-	glutPostRedisplay();
 }
 
 int main(int argc, char* argv[])
@@ -337,28 +355,40 @@ int main(int argc, char* argv[])
 	flags.showPolygonal = false;
 	flags.editDerivativeParameters = false;
 	flags.showTangents = false;
-	glutInit(&argc, argv);
+	if (!glfwInit())
+	{
+		cout << "Impossibile inizializzare GLFW" << endl;
+		return -1;
+	}
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // required on macOS
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	glutInitContextVersion(4, 0);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
+	window = glfwCreateWindow(width, height, "Scena OpenGL", nullptr, nullptr);
+	if (!window)
+	{
+		cout << "Impossibile creare la finestra" << endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);
+	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glfwSetCharCallback(window, keyPressEvent);
+	glfwSetMouseButtonCallback(window, mouseClick);
+	glfwSetCursorPosCallback(window, mouseMotion);
 
-	glutInitWindowSize(width, height);
-	glutInitWindowPosition(100, 100);
-	glutCreateWindow("Scena OpenGL");
-	
-	glutDisplayFunc(drawScene);
-	//glutTimerFunc(66, update, 0);
-	glutKeyboardFunc(keyPressEvent);
-	//glutReshapeFunc(resize);
-	glutMouseFunc(mouseClick);
-	glutMotionFunc(mouseMotion);
-	glewExperimental = GL_TRUE;
-	glewInit();
+	/* Installed after our callbacks, so that ImGui chains them */
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330");
+
 	initializeShader(&programId);
 	getUniformLocations(&programId);
-	buildMainMenu();
 	/*
 	* Initialization
 	*/
@@ -366,5 +396,26 @@ int main(int argc, char* argv[])
 	
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glutMainLoop();
+	while (!glfwWindowShouldClose(window))
+	{
+		glfwPollEvents();
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		drawMainMenu();
+		ImGui::Render();
+
+		glUseProgram(programId);
+		drawScene();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		glfwSwapBuffers(window);
+	}
+
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+	glfwDestroyWindow(window);
+	glfwTerminate();
+	return 0;
 }

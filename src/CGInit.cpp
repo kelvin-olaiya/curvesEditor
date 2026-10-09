@@ -4,6 +4,10 @@
 static void createVaoVector(GLuint* vao, GLuint* geometryVBO, vector<vec3>* points, GLuint* colorVBO, vector<vec4>* colors)
 {
 	//------------------------------GEOMETRY--------------------------------
+	/* Release the objects created on the previous call, if any */
+	glDeleteVertexArrays(1, vao);
+	glDeleteBuffers(1, geometryVBO);
+	glDeleteBuffers(1, colorVBO);
 	/* Generate and bind (activate) a vertex array object */
 	glGenVertexArrays(1, vao);
 	glBindVertexArray(*vao);

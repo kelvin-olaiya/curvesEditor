@@ -40,8 +40,29 @@ void createBezierShape(vec4 color_top, vec4 color_bot, Shape* shape, Shape* poly
 				}
 			}
 			shape->vertices.push_back(vec3(c[0].x, c[0].y, 0.0));
-			shape->colors.push_back(vec4(1, 0, 0, 1));
+			shape->colors.push_back(color_top);
 		}
 		shape->numVertices = shape->vertices.size();
 	}
+}
+
+
+void createThickLineShape(Shape* line, Shape* strip, float width)
+{
+	/* glLineWidth > 1 is not supported by core profile contexts (e.g. on macOS),
+	   so the line is drawn as a triangle strip of the given width */
+	strip->vertices.clear();
+	strip->colors.clear();
+	int n = line->vertices.size();
+	for (int i = 0; i < n; i++)
+	{
+		// Direction of the line at the vertex, from its neighbours
+		vec2 dir = vec2(line->vertices[i < n - 1 ? i + 1 : i] - line->vertices[i > 0 ? i - 1 : i]);
+		vec2 normal = length(dir) > 0 ? normalize(vec2(-dir.y, dir.x)) * (width / 2) : vec2(0);
+		strip->vertices.push_back(line->vertices[i] + vec3(normal, 0));
+		strip->vertices.push_back(line->vertices[i] - vec3(normal, 0));
+		strip->colors.push_back(line->colors[i]);
+		strip->colors.push_back(line->colors[i]);
+	}
+	strip->numVertices = strip->vertices.size();
 }
